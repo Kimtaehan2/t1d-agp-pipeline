@@ -1,0 +1,13 @@
+# 데이터는 저장소에 커밋하지 않는다
+data/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+*.egg-info/
+
+# Excel 임시 잠금 파일
+~$*

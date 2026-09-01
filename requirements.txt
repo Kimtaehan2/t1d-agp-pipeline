@@ -1,0 +1,13 @@
+pandas
+numpy
+scikit-learn
+pytest
+
+# Parquet 엔진. pyarrow가 우선이지만 이 PC에서는 DLL이 애플리케이션 제어 정책에
+# 막혀 import되지 않아 fastparquet로 폴백한다. src/storage.py가 자동 선택한다.
+pyarrow
+fastparquet
+
+# Excel 리더 (ShanghaiT1DM 원본이 .xls/.xlsx 혼재)
+openpyxl   # .xlsx
+xlrd       # .xls (레거시)
