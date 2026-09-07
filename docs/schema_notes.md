@@ -3,99 +3,12 @@
 실제 파일을 읽어 확인한 내용만 적는다. 추측은 적지 않고, 확인이 필요한 항목은
 "확인 필요"로 남긴다.
 
-마지막 확인: 2026-09-01
+마지막 확인: 2026-09-08
 
----
-
-## ShanghaiT1DM
-
-- 위치: `data/raw/shanghai/Shanghai_T1DM/`
-- 로더: [`src/loaders/shanghai_t1dm.py`](../src/loaders/shanghai_t1dm.py)
-- 요약표: `data/raw/shanghai/Shanghai_T1DM_Summary.xlsx` (33컬럼, 인구통계·검사값)
-
-### 파일 구성
-
-파일 16개, 환자 12명. 파일명은 `{환자번호}_{내원차수}_{시작일}` 이고
-**파일 1개 = 내원 1회**다. 1002와 1006은 각각 3회 내원했으므로 파일 단위로
-`patient_id`를 만들면 같은 환자가 서로 다른 ID로 쪼개진다. 로더는 첫 토큰
-(환자번호)만 써서 `shanghai_t1dm_1002` 형태로 묶는다.
-
-`.xls`(11개)와 `.xlsx`(5개)가 섞여 있어 `xlrd`와 `openpyxl`이 모두 필요하다.
-`~$1006_*.xlsx` 같은 Excel 임시 잠금 파일 3개가 디렉터리에 있으므로 glob에서
-반드시 제외한다.
-
-요약표의 `Patient Number`는 환자번호가 아니라 **파일 stem**(`1002_0_20210504`)이라
-내원 단위다. 조인할 때 주의.
-
-### 컬럼 (16개 파일 전부 동일)
-
-| 원본 컬럼 | dtype(원본) | 비고 |
-| --- | --- | --- |
-| `Date` | datetime64[us] | tz-naive. pandas 3.x는 `[us]`로 읽으므로 `[ns]` 변환 필요 |
-| `CGM (mg / dl)` | float64 | **이미 mg/dL**. 결측 없음 |
-| `CBG (mg / dl)` | float64 | 자가혈당측정. 대부분 결측 |
-| `Blood Ketone (mmol / L)` | float64 | 대부분 결측 |
-| `Dietary intake` | str | 영문 식사 텍스트 |
-| `饮食` | str | 위와 같은 내용의 중문 텍스트 |
-| `Insulin dose - s.c.` | str/float | 자유 텍스트. 예: `Novolin R, 5 IU` |
-| `Non-insulin hypoglycemic agents` | str/float | 예: `acarbose 50 mg` |
-| `CSII - bolus insulin (Novolin R, IU)` | float/str | 펌프 볼러스 |
-| `CSII - basal insulin (Novolin R, IU / H)` | float/object | 펌프 기저 주입률 |
-| `Insulin dose - i.v.` | str/float | 수액 처방 문장. 예: `500ml 0.9% sodium chloride, 12 IU Novolin R, ...` |
-
-**dtype이 파일마다 다르다.** 값이 전부 결측인 컬럼은 float64로, 문자열이 하나라도
-있으면 str로 읽힌다. 로더에서 반드시 강제 변환한다.
-
-### 측정 간격
-
-전 파일 15분 고정 (FreeStyle Libre). 파일 내 간격의 최빈·최소·최대가 모두 15분이고,
-예외는 `1002_1`의 30분 공백 1건뿐이다.
-
-**타임스탬프가 5분/15분 그리드에 정렬돼 있지 않다.** 예: 1001은 16:43, 16:58, 17:13 …
-파일마다 고정 오프셋이 있다. 공통 5분 그리드로 리샘플링할 때 단순 `resample`이 아니라
-가장 가까운 그리드로 스냅한 뒤 보간해야 한다.
-
-### 값 범위와 센서 캡핑
-
-전체 CGM 범위는 39.6 ~ 475.2 mg/dL. 값이 전부 1.8 mg/dL(=0.1 mmol/L × 18)의 배수라
-**원본은 mmol/L로 기록된 것을 ×18로 변환해 배포한 것**이다. 우리 변환 계수(18.018)와
-다르지만 이미 mg/dL이므로 재변환하지 않는다.
-
-캡핑 판정 기준이 Dexcom(40/400)과 다르다. 이 데이터의 하한은 **39.6**(2.2 mmol/L),
-상한은 **500.4**(27.8 mmol/L)이다. 캡핑 플래그 로직에서 40/400을 하드코딩하면 안 된다.
-
-### 결측·센티널 문자열
-
-- 식사 컬럼: `data not available`(영문), `未记录`(중문, '기록 없음')
-- 숫자 컬럼에 문자열: `temporarily suspend insulin delivery` (펌프 일시 중단 12건)
-- 경구약 컬럼 일부 값 앞에 **NBSP(`\xa0`)** 가 붙어 있다: `\xa0voglibose 0.2 mg`
-- 같은 약이 `acarbose 50 mg` / `acarbose, 50 mg` 두 표기로 섞여 있다
-
-### 로더가 만드는 이벤트 (실측 2,349건)
-
-| event_type | 건수 | 원본 컬럼 | value 단위 |
-| --- | --- | --- | --- |
-| `cbg` | 750 | CBG | mg/dL |
-| `meal` | 407 | Dietary intake → 饮食 순 | NaN |
-| `insulin_basal_rate` | 385 | CSII basal | IU/h |
-| `insulin_sc` | 371 | Insulin dose - s.c. | IU |
-| `insulin_bolus` | 221 | CSII bolus | IU |
-| `oral_agent` | 144 | Non-insulin agents | mg |
-| `blood_ketone` | 40 | Blood Ketone | mmol/L |
-| `insulin_iv` | 19 | Insulin dose - i.v. | IU |
-| `pump_suspend` | 12 | CSII bolus/basal | NaN |
-
-용량 파싱 실패(NaN) 0건. 원본 문자열은 `text` 컬럼에 그대로 보존한다.
-
-**식사의 탄수화물 그램은 원본에 없다.** 텍스트에 적힌 g은 음식의 **중량**이지
-탄수화물량이 아니다(`Wonton 250 g`). 그래서 `meal` 이벤트의 `value`는 NaN이다.
-탄수화물 추정이 필요하면 별도 작업이 필요하다. — 확인 필요
-
-### AGP 창 유효성 관점
-
-내원별 기간은 3.7 ~ 13.9일이고, 최소 10일 기준을 넘는 내원은 16건 중 7건, 권장 14일을 넘는 내원은 0건이다.
-환자 1002·1006은 내원 사이 간격이 수 주~4개월이므로 환자 단위로 이어 붙여
-연속 창을 만들면 안 된다. 로더는 `visits` 테이블로 내원 경계를 함께 반환한다.
+Replace-BG·ShanghaiT1DM의 **원본 구조 기록은 `Replace-BG` 브랜치로 옮겼다.** 두
+데이터셋 로더가 그쪽에 있기 때문이다. 다만 아래 전처리·지표·패턴 절에 남아 있는
+Replace-BG 실측 수치는 그대로 둔다 — `src/patterns.py`의 임계값이 그 수치를 근거로
+정해져 있고, 코드에 값이 남아 있는 한 근거도 같이 있어야 한다.
 
 ---
 
@@ -123,154 +36,181 @@ CSV 10개(`adult#001`~`adult#010`), 각 34,560행 = **120일 × 288 (5분 간격
 
 ---
 
-## Replace-BG (주력)
+## T1D-UOM (주력, main은 MDI 8명만 싣는다)
 
-- 위치: `data/raw/Replace-BG Dataset/Data Tables/`
-- 로더: [`src/loaders/replace_bg.py`](../src/loaders/replace_bg.py)
-- `data/raw/replace_bg/Readme.txt`는 원래 있던 링크 안내문이다(데이터 아님).
+- 위치: `data/raw/ManchesterCSCoordinatedDiabetesStudy-V1.0.1/sharpic-ManchesterCSCoordinatedDiabetesStudy-a9e8025/`
+- 로더: [`src/loaders/t1d_uom.py`](../src/loaders/t1d_uom.py)
+- 판정 보고서: `T1D-UOM` 브랜치의 `docs/t1d_uom/판정보고서.md`
+- 라이선스: CC BY 4.0 · 맨체스터대 윤리승인 2024-15687-33719
 
-### 파일 형식
+환자 17명(2301–2310, 2313, 2314, 2320, 2401, 2403, 2404, 2405), 2023-09 ~ 2024-09.
+IDs가 연속이 아니다 — 2311, 2312, 2315–2319, 2402는 배포본에 없다.
 
-JAEB 배포 형식. **파이프(`|`) 구분** 텍스트, 줄바꿈 CRLF. 30개 테이블 + CRF PDF.
-`HDeviceCGM.txt` 하나가 **837MB / 14,950,661행**이라 전체를 한 번에 DataFrame으로
-올리지 않고 청크로 읽는다.
+### 파일 구성
 
-환자 ID 컬럼명이 테이블마다 다르다. `HDeviceWizard`만 **`PtId`**, 나머지는 `PtID`.
+`UoM{종류}{환자번호}.csv` (수면 창 파일만 `UoM{번호}sleeptime.csv`로 뒤집혀 있다).
+전부 UTF-8·쉼표 구분. 일부 파일에 BOM이 있고 `UoMBasal2301.csv`에는 빈 꼬리 컬럼이
+2개 있어 `encoding="utf-8-sig"` + `Unnamed:*` 제거가 필요하다.
 
-### 날짜 익명화 (중요)
+| 폴더 | 파일 | 없는 환자 |
+|---|---|---|
+| `Glucose Data/` | 17 | — |
+| `Activity Data/` | 17 | — |
+| `Insulin Data/Basal Data/` | 14 | 2303, 2320, 2404 |
+| `Insulin Data/Bolus Data/` | 16 | 2303 |
+| `Nutrition Data/` | 15 | 2303, 2310 |
+| `Sleep Data/` | 18 + 15 | 두 계열 파일 |
 
-**원본에 절대 날짜가 없다.** 등록일 기준 상대 일수(`DeviceDtTmDaysFromEnroll`,
-음수 가능)와 시각(`DeviceTm`)만 있다. 공통 스키마의 `timestamp`를 채우려고
-로더가 `ANCHOR_DATE = 2015-01-01`을 더해 펼친다.
+### 원본 README와 다른 점
 
-- 의미 있는 것: **환자 내부의 시간 간격**과 **하루 중 시각**. AGP는 둘 다 보존된다.
-- 의미 없는 것: 달력상의 절대 날짜, **요일**. 요일 기반 패턴 탐지는 불가능하다.
-- 모든 환자가 같은 기준일을 쓰므로 환자 간 달력 정렬은 인위적이다.
+- **`Demographics/` 폴더가 없다.** README는 123 KB로 적어 놨다. 치료 방식·나이·
+  HbA1c가 들어 있을 폴더라 가장 큰 공백이다. — 확인 필요
+- README 본문은 16명, 초록과 실제 파일은 17명이다.
+- `CITATION.cff`의 DOI가 자리표시자(`10.5281/zenodo.123456`)다. — 확인 필요
 
-### CGM (`HDeviceCGM.txt`)
+### 날짜 형식 — README가 틀렸다 (중요)
 
-컬럼: `RecID|ParentHDeviceUploadsID|PtID|SiteID|DeviceDtTmDaysFromEnroll|DeviceTm|
-DexInternalDtTmDaysFromEnroll|DexInternalTm|RecordType|GlucoseValue`
+README 데이터 사전은 `MM/DD/YYYY`라고 적어 놨지만 **실제로는 `DD/MM/YYYY`다.**
 
-`DexInternal*`은 기기 내부 시계라 보정 전 값이다. `DeviceDtTm*` 쪽을 쓴다.
+- `UoMNutrition2301.csv`에 `22/10/2023`이 있다. 22는 월이 될 수 없다.
+- 두 번째 필드가 12를 넘는 행은 전 파일에 0건, 첫 필드가 넘는 행은 흔하다
+  (볼러스 파일 기준 환자당 60~357행).
+- `UoMGlucose2301.csv`는 `01/10/2023`에서 시작한다. 월-일을 뒤집으면 2023년 1월이
+  되어 연구 시작(2023-10) 이전이다.
 
-| 항목 | 실측값 |
-| --- | --- |
-| 전체 행 | 14,950,661 |
-| `RecordType=CGM` | 14,807,435 |
-| `RecordType=Calibration` | 143,226 (지문채혈 교정값 — CGM이 아니다) |
-| 환자 | 226명 |
-| 환자당 데이터 있는 날 | 중앙값 249일 (최소 67, 최대 351) |
-| 일자 범위 | −603 ~ +329 |
+월-일을 뒤집어 읽으면 **두 필드가 모두 12 이하인 날짜에서 예외 없이 조용히
+어긋난다.** 로더는 `dayfirst=True`로 읽고 `STUDY_START`~`STUDY_END`
+(2023-09-01 ~ 2024-10-01) 범위를 벗어난 행을 버린다.
 
-측정 기기는 전부 **Dexcom G4**(`HDeviceUploads` 확인: G4Receiver 3,674 /
-G4ShareReceiver 25 / G5MobileReceiver 1). 측정 간격은 5분이지만 기기 시계가
-흔들려 정확히 300초는 92.3%, 298~302초까지 포함하면 98.9%다. **5분 그리드에
-스냅한 뒤 처리해야 한다.**
+### 타임존 — 로컬시로 추정, 오프셋 컬럼 없음
 
-30분 초과 공백 21,976건(0.15%).
+`UoMActivity2301.csv` 첫 행이 `activity_ts = 01/10/2023 05:45`,
+`start_time_s = 1696135500`(= 04:45 UTC), `start_time_offset_s = 3600`이다.
+즉 `activity_ts` = UTC + 오프셋 = Europe/London 로컬시(당시 BST).
 
-### 센서 캡핑 — 스펙의 40/400과 다르다
+오프셋 컬럼은 **활동 테이블에만** 있다. 혈당·인슐린·식사는 naive이고 같은 시계를
+쓴다고 *가정*했다. 데이터가 DST 전환(2023-10-29, 2024-03-31)을 지나므로 반복되는
+1시간과 없는 1시간이 존재한다. 00:00–06:00 야간 규칙에 영향을 준다. — 확인 필요
 
-CLAUDE.md는 "40 또는 400이 반복되면 캡핑"이라고 적혀 있지만, 이 데이터의 실제
-센티널은 **39와 401**이다.
+### 혈당 (`UoMGlucose*.csv`)
 
-| 값 | 건수 | 주변 값 대비 |
-| --- | --- | --- |
-| 39 | 28,885 | 40(4,753)·41(4,165)·42(4,486)의 6배 |
-| 401 | 48,935 | 398(1,204)·399(1,159)·400(3,530)의 14~40배 |
+`bg_ts`, `value`. **mmol/L**이고 문서와 일치한다. 환자별 중앙값 6.3~9.8, 코호트
+중앙값 7.9(mg/dL이면 120~180 근처였을 것). `×18.018`로 변환한다.
 
-`RecordType=CGM`의 최솟값이 39, 최댓값이 401이고 그 밖의 값은 없다. 40/400을
-하드코딩하면 센티널 78,000건을 놓치고 정상값 8,000건을 잘못 표시하게 된다.
-로더는 `LOW_SENTINEL_MGDL = 39.0`, `HIGH_SENTINEL_MGDL = 401.0`으로 노출한다.
+**측정 주기가 코호트 안에서 균일하지 않다.** 최빈 간격이 5분인 환자 9명(2301,
+2303, 2304, 2307, 2308, 2309, 2310, 2313, 2320), 15분인 환자 8명(2302, 2305, 2306,
+2314, 2401, 2403, 2404, 2405). 덱스콤/리브레 계열로 보이나 **어떤 파일에도 기기명이
+없다.** — 확인 필요
 
-교정값(`Calibration`)은 센서가 아니라 지문채혈이라 범위가 다르다(25~600 mg/dL).
+15분 계열은 5분 격자에서 하루 288슬롯 중 최대 96슬롯만 채우므로, 확보율을 5분
+격자로 고정해 재면 데이터 품질과 무관하게 0.33 이하가 된다.
 
-### 중복
+### 값 범위와 센서 캡핑 — 센서가 한 종류가 아니다
 
-`(PtID, 일자, 시각)` 중복이 파일 전체에 1,356건(0.01%) 있다. 같은 센서 데이터가
-여러 번 업로드된 것으로 보인다. 그중 920건은 혈당값까지 같고, **436건은 값이
-다르다.** 로더는 정렬 후 먼저 온 행을 남긴다.
+값이 전부 0.1 mmol/L 배수다. MDI 환자 116,625행 기준 하한 2.2 mmol/L(=39.6),
+상한 27.8 mmol/L(=500.9). 상한 쌓임이 뚜렷하다 — **27.8이 23건인데 27.7은 1건**이다.
 
-대부분이 등록일 이전 구간에 몰려 있어서 기본값(`min_day=0`)으로 걸러내고 나면
-82건만 남는다.
+그런데 상한이 22.2 mmol/L(=400.0)인 환자도 있다. **2309는 22.2가 207건**으로
+덱스콤 계열 상한에서 검열된 것이 분명하다. `SENSOR_LIMITS["t1d_uom"]`에는 넓은 쪽
+`(39.6, 500.9)`를 등록했으므로 **22.2에서 검열된 환자의 캡핑은 잡히지 않는다.**
+현재 main은 MDI 전용이라 문제가 없지만 펌프 환자를 넣으면 걸린다. — 확인 필요
 
-### patient_id 정렬 (걸려 넘어지기 쉬운 지점)
+2307에 0.1 mmol/L(=1.8 mg/dL)가 있다. 생리학적으로 불가능하므로 로더가 버린다.
 
-`patient_id`가 문자열이라 정렬 기준이 **사전순**이다:
-`replace_bg_10 < replace_bg_100 < replace_bg_2`. 숫자 `PtID`로 정렬해 저장하면
-공통 스키마 검증(`validate_cgm_frame`)이 실패한다. 환자가 12명뿐인 Shanghai에서는
-드러나지 않고 226명짜리 Replace-BG에서만 드러난다.
+### 인슐린
 
-### 등록일 이전 기록
+`UoMBasal*.csv`: `basal_ts`, `basal_dose`, `insulin_kind` ∈ {`R` 속효성,
+`L` 지속형}. **`basal_dose`의 단위가 U인지 U/h인지 파일이 말하지 않는다.** README도
+"U or U/h"라고만 적어 놨다. `L`은 U/회, `R`은 U/h로 가정했다. — 확인 필요
 
-일자가 음수인 행이 1,102,160건(7.44%), 해당 환자 106명. 최대 595일 전까지
-거슬러 올라간다(선별 방문 때 업로드한 기기 이력). 로더 기본값은 `min_day=0`으로
-이를 버린다. 전부 남기려면 `min_day=None`.
+`UoMBolus*.csv`: `bolus_ts`, `bolus_dose`(U). **볼러스 종류(식사/교정)도, 권장량
+대 실제 투여량도, IOB도, 탄수화물 비율도 없다.**
 
-### 이벤트 테이블
+### 식사 (`UoMNutrition*.csv`)
 
-| 원본 | 행 수 | 환자 | → event_type |
-| --- | --- | --- | --- |
-| `HDeviceWizard.CarbInput > 0` | 213,027 | 204 | `meal` (g) |
-| `HDeviceBolus.Normal` | 411,472 | 224 | `insulin_bolus` (IU) |
-| `HDeviceBolus.Extended` | 21,752 | | `insulin_bolus_extended` (IU) |
-| `HDeviceBasal` scheduled/temp | 463,346 | | `insulin_basal_rate` (IU/h) |
-| `HDeviceBasal` suspend | 40,671 | | `pump_suspend` |
-| `HDeviceBGM` RecordType=BGM | 580,577 | 226 | `cbg` (mg/dL) |
-| `HDeviceBGM` RecordType=Ketone | 3,408 | | `blood_ketone` (mmol/L) |
-| `HDeviceCGM` RecordType=Calibration | 143,226 | | `cbg` (text=`calibration`) |
+`meal_ts`, `meal_type` ∈ {Breakfast, Lunch, Dinner, Snack}, `meal_tag`(음식명 자유
+문자열), `carbs_g`, `prot_g`, `fat_g`, `fibre_g`. 자기보고이고 시각이 정시로 반올림된
+기록이 많다. 후보 창 기준 96~100%가 `carbs_g`를 갖는다.
 
-주의할 점:
+### 활동 (`UoMActivity*.csv`) — 이벤트 로그가 아니다
 
-- `BolusType`에 대소문자 변형이 있다: `normal` 380,918 / `Normal` 12,873 /
-  `dual/square` 16,621 / `square` 5,127 / `Combination` 1,060. 소문자로 정규화한다.
-- `HDeviceBolus.Duration`은 **밀리초**다(3,600,000 = 1시간). `InjValue`는 전부 비어 있다.
-- **`HDeviceWizard`의 혈당 관련 값은 mmol/L이다.** `BgInput` 중앙값 8.38,
-  `BgTargetLow` 5.0, `InsulinSensitivity` 2.78. 환자별 `BgTargetLow` 중앙값이
-  25 미만인 환자가 156명, 25 이상은 0명으로 전원 mmol/L. 반면 `HDeviceCGM`·
-  `HDeviceBGM`의 혈당은 mg/dL이다. **같은 데이터셋 안에서 단위가 섞여 있다.**
-  현재 로더는 `CarbInput`(g)만 쓰므로 변환 대상이 아니지만, `BgInput`을 쓰게 되면
-  반드시 변환해야 한다.
-- `HDeviceBGM.RecordSubType`: 빈값 363,816 / `manual` 190,986 / `linked` 29,183.
+`activity_ts`, `activity_type` ∈ {SEDENTARY, WALKING, RUNNING, GENERIC},
+`active_Kcal`, `step_count`, `distance_m`, `duration_s`, `active_time_s`,
+`start_time_s`, `start_time_offset_s`, `met`, `intensity` ∈ {SEDENTARY, ACTIVE,
+HIGHLY_ACTIVE}, `motion_intensity_mean`, `motion_intensity_max`.
 
-### 환자 명단 (`HPtRoster.txt`)
+**15분 간격 웨어러블 에폭 연속 스트림이고 대부분의 행이 `SEDENTARY`다**(전체의
+66~78%). 시작도 지속시간도 자기보고 강도도 없다. 개별 운동 세션은 파생해야 하고,
+그건 필드 읽기가 아니라 모델링 결정이다. 로더는 여기서 이벤트를 만들지 않는다.
 
-226명. `PtStatus`: Completed 217 / Dropped 9. `TrtGroup`: CGM Only 149 / CGM+BGM 77.
+### 치료 방식 — 추론이다, 문서가 아니다
 
-### 폐루프 여부
+**어떤 파일에도 MDI/펌프/폐루프 컬럼이 없다.** 기저 기록의 모양으로 갈랐다.
 
-`HDeviceUploads`의 펌프는 Medtronic Paradigm/MiniMed 5xx·7xx, Insulet OmniPod,
-Tandem, Animas로 전부 2015~2016년 개방루프 기기다. 자동 조절 알고리즘이 없으므로
-우리 대상(본인이 계산해 주사하는 환자)에 맞는다.
+| 구분 | 기저 기록 모양 | 환자 |
+|---|---|---|
+| MDI | `L`, 하루 1~2건, 용량 종류 ≤9 | 2302, 2305, 2306, 2313, 2314, 2401, 2403, 2405 (8) |
+| 개방루프 펌프 | `R`, 하루 4~8건, 용량 종류 3~9 | 2304, 2308, 2309, 2310 (4) |
+| 폐루프(AID) | `R`, 하루 120~157건(≈5분마다), 용량 종류 1,034~1,974 | 2301, 2307 (2) |
+| 분류 불가 | 기저 파일 없음 | 2303, 2320, 2404 (3) |
 
-### 변환 결과 (기본 설정, `min_day=0`)
+5분마다 2,000개 가까운 서로 다른 값으로 바뀌는 기저는 사람이 프로그래밍한 것이
+아니다. **2301·2307은 수동관리 리플레이에서 제외해야 한다.** 데이터셋 초록도
+"AID가 수동 모드로 되돌아간 상황"을 겨냥한다고 밝히고 있어 어긋나지 않는다.
 
-| 산출물 | 내용 | 크기 |
-| --- | --- | --- |
-| `data/interim/replace_bg_cgm.parquet` | CGM 13,705,193행 · 226명 | 142MB |
-| `data/interim/replace_bg_events.parquet` | 이벤트 1,497,432건 | 19MB |
-| `data/interim/replace_bg_patients.parquet` | 명단 226명 | 8KB |
+수동관리 **12명**(MDI 8 + 개방루프 4)이 남는다. 추론이므로 Zenodo의 demographics로
+검증해야 한다. — 확인 필요
 
-원본 837MB → Parquet 142MB. 변환 44초, 다시 읽는 데 2초.
+### 로더가 만드는 이벤트 (수동관리 12명 기준 9,277건)
 
-환자당 관찰기간 중앙값 245일(최소 63, 최대 330), 행 수 중앙값 62,664.
-**전원이 AGP 최소 10일·권장 14일 기준을 크게 넘는다.**
+| event_type | 건수 | 출처 |
+|---|---|---|
+| `insulin_bolus` | 3,733 | `UoMBolus.bolus_dose` (IU) |
+| `meal` | 3,028 | `UoMNutrition.carbs_g` (g), `meal_type`·`meal_tag`는 `text`에 |
+| `insulin_basal_rate` | 1,919 | `UoMBasal` `insulin_kind=R` (IU/h) |
+| `insulin_sc` | 597 | `UoMBasal` `insulin_kind=L` (IU) |
 
-재생성:
+**지속형 기저를 `insulin_basal_rate`가 아니라 `insulin_sc`로 보낸다.** MDI의 `L`은
+하루 1~2회 주사이지 주입률이 아니다.
 
-```python
-from src.loaders import replace_bg as rb
-rb.export_cgm_parquet("data/interim/replace_bg_cgm.parquet")
-```
+`exercise` 이벤트는 만들지 않는다. 위 활동 절 참고.
 
----
+### 이벤트와 CGM의 기간이 어긋난다 (중요)
 
-## Shanghai T2DM
+**CGM 확보율이 이벤트 확보율을 보장하지 않는다.** 2304는 CGM 4개월 중 볼러스가
+2023-12-31~2024-01-31 한 달치뿐이고, 2310은 식사 파일이 없고 볼러스도 2024-02-10
+부터다. 둘 다 CGM 창은 227개 통과하는데 이벤트가 있는 창은 0개다.
 
-- 위치: `data/raw/shanghai/Shanghai_T2DM/`
-- 제2형 당뇨라 이 프로젝트 범위 밖이다. 원본은 지우지 않고 그대로 둔다.
-- 컬럼 구조는 T1DM과 유사해 보이나 전수 확인하지 않았다. — 확인 필요
+일부 이벤트 행은 연구 기간을 완전히 벗어난다(2302 볼러스 2023-01, 2403 볼러스
+2023-03, 2314 식사 2024-12). 환자당 0~34행. 원인 불명이고 로더가 버린다. — 확인 필요
+
+### AGP 창 유효성 관점
+
+슬라이딩 14일 창(1일 간격) 1,169개 중 1,073개가 확보율 ≥0.70 · 유효일수 ≥10일을
+통과한다. 12명 전원이 통과 창을 갖는다. 확보율은 병목이 아니고 **이벤트 밀도가
+병목**이다 — 두 조건을 모두 걸면 516개(환자 10명)로 준다.
+
+확보율은 5분 고정 격자가 아니라 환자 자신의 센서 주기로 쟀다. 두 값 모두
+`docs/t1d_uom/window_candidates.csv`에 남겼다.
+
+**주의:** `preprocess_cgm`은 5분 격자로 펴고 30분 이내 공백을 보간하므로 15분 센서
+환자는 슬롯의 55~66%가 `is_imputed=True`가 된다. 그 결과 `recent_metrics`의
+`coverage`가 1.0에 가깝게 나와 `MIN_AGP_COVERAGE` 필터가 사실상 통과된다.
+파이프라인 지표를 인용할 때는 `pct_imputed`를 같이 봐야 한다. — 확인 필요
+
+### 인용 / 라이선스 표기
+
+> **T1D-UOM – A Longitudinal Multimodal Dataset of Type 1 Diabetes.**
+> Alsuhaymi, A.; Bilal, A.; Gasca Garcia, D.; Kongdee, R.; Lubasinski, N.;
+> Hood, T.; Nutter, P.; Harper, S. University of Manchester, 2025. Version 1.0.1.
+> [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+> 출처: <https://github.com/sharpic/ManchesterCSCoordinatedDiabetesStudy>
+> DOI: *(Zenodo 레코드에서 받을 것. `CITATION.cff`의 값은 자리표시자다.)*
+> 2023-10 ~ 2024-08 수집, 맨체스터대 윤리승인 2024-15687-33719.
+> 원본 데이터는 리플레이용 형식 변환 외에 변경하지 않았다.
+
+CC BY 4.0은 출처 표기와 변경 사실 명시를 조건으로 재배포·변형을 허용한다. 비식별
+창을 시연 계정에 적재하는 것은 위 표기가 시연에 같이 나가는 한 라이선스 범위 안이다.
 
 ---
 
