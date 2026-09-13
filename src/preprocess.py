@@ -59,11 +59,14 @@ MAX_INTERPOLATION_GAP_MINUTES = 30
 #                    **센서가 한 종류가 아니다.** 상한이 22.2 mmol/L(=400.0)인
 #                    환자도 있다(2309: 22.2가 207건). 여기 값은 넓은 쪽이라
 #                    22.2에서 검열된 환자의 캡핑은 잡히지 않는다.
+#   ohio_t1dm      : 정확히 40/400. 166,533행 중 40이 206건(41은 31건), 400이
+#                    335건(399는 7건). Replace-BG의 G4와 달리 스펙값 그대로다.
 #   simulated      : 정확히 40.0/400.0으로 클리핑돼 있다.
 SENSOR_LIMITS: dict[str, tuple[float, float]] = {
     "replace_bg": (39.0, 401.0),
     "shanghai_t1dm": (39.6, 500.4),
     "t1d_uom": (39.6, 500.9),
+    "ohio_t1dm": (40.0, 400.0),
     "simulated": (40.0, 400.0),
 }
 

@@ -67,7 +67,11 @@ EVENT_TYPES: frozenset[str] = frozenset(
         "pump_suspend",       # 펌프 일시 중단
         "cbg",                # 자가혈당측정(지문채혈), mg/dL
         "blood_ketone",       # 혈중 케톤, mmol/L
-        "exercise",           # 운동
+        "exercise",           # 운동. value=지속시간(분), 강도는 text에
+        "hypo_event",         # 자기보고 저혈당 사건(처치 시점). value 없음
+        "illness",            # 질병. 기간은 text에
+        "stressor",           # 스트레스 요인
+        "sleep",              # 수면 구간. value=지속시간(시간), 질은 text에
     }
 )
 
