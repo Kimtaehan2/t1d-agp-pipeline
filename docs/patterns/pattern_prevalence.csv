@@ -1,0 +1,52 @@
+dataset,pattern,name,report_enum,n_sources,tier,patients_recent,patients_denom,pct_patients_recent,windows_sliding,windows_denom,pct_windows_sliding
+T1D-UOM (수동관리 12),low_data_coverage,데이터 불충분,LOW_DATA_COVERAGE,6,MVP,0,12,0.0,10,173,5.8
+T1D-UOM (수동관리 12),excess_hypoglycemia,전반적 저혈당 과다,HYPO_OVERALL_L1,7,MVP,3,12,25.0,43,163,26.4
+T1D-UOM (수동관리 12),excess_hypoglycemia_level2,심한 저혈당 과다,HYPO_OVERALL_L2,7,MVP,1,12,8.3,19,163,11.7
+T1D-UOM (수동관리 12),prolonged_hypoglycemia,지속 저혈당,PROLONGED_HYPO,2,Phase 2,4,12,33.3,61,163,37.4
+T1D-UOM (수동관리 12),nocturnal_hypoglycemia,야간 저혈당,NOCTURNAL_HYPO,6,MVP,3,12,25.0,60,163,36.8
+T1D-UOM (수동관리 12),exercise_delayed_hypoglycemia,운동 후 지연성 저혈당,EXERCISE_DELAYED_HYPO,4,Phase 2 (운동 로그),0,12,0.0,0,163,0.0
+T1D-UOM (수동관리 12),hypo_concentration,저혈당 집중 시간대,(시간대 검토),AGP-lit,기존,9,12,75.0,125,163,76.7
+T1D-UOM (수동관리 12),low_time_in_range,목표범위 미달,(TIR 목표),전 출처,지표,7,12,58.3,75,163,46.0
+T1D-UOM (수동관리 12),excess_hyperglycemia,고혈당 과다,HYPER_SUSTAINED,7,MVP,7,12,58.3,77,163,47.2
+T1D-UOM (수동관리 12),excess_hyperglycemia_level2,심한 고혈당 과다,HYPER_SUSTAINED,7,MVP,8,12,66.7,67,163,41.1
+T1D-UOM (수동관리 12),sickday_ketone_risk,케톤 위험 지속 고혈당,SICKDAY_KETONE_RISK,4,Phase 2,7,12,58.3,65,163,39.9
+T1D-UOM (수동관리 12),postprandial_spike,식후 스파이크,POSTPRANDIAL_HYPER,6,MVP (식사 로그),4,12,33.3,43,163,26.4
+T1D-UOM (수동관리 12),fasting_hyperglycemia,공복/아침 고혈당,FASTING_MORNING_HYPER,6,MVP,6,12,50.0,83,163,50.9
+T1D-UOM (수동관리 12),hyper_concentration,고혈당 집중 시간대,(시간대 검토),AGP-lit,기존,4,12,33.3,55,163,33.7
+T1D-UOM (수동관리 12),high_variability,높은 변동성,HIGH_VARIABILITY,6,MVP,6,12,50.0,69,163,42.3
+T1D-UOM (수동관리 12),rapid_drop,급격한 혈당 하강,RAPID_DROP,3,Phase 2,11,12,91.7,151,163,92.6
+T1D-UOM (수동관리 12),dawn_rise,새벽 상승,DAWN_PHENOMENON,3,Phase 2,0,12,0.0,3,163,1.8
+T1D-UOM (MDI 8),low_data_coverage,데이터 불충분,LOW_DATA_COVERAGE,6,MVP,0,8,0.0,3,109,2.8
+T1D-UOM (MDI 8),excess_hypoglycemia,전반적 저혈당 과다,HYPO_OVERALL_L1,7,MVP,3,8,37.5,37,106,34.9
+T1D-UOM (MDI 8),excess_hypoglycemia_level2,심한 저혈당 과다,HYPO_OVERALL_L2,7,MVP,1,8,12.5,16,106,15.1
+T1D-UOM (MDI 8),prolonged_hypoglycemia,지속 저혈당,PROLONGED_HYPO,2,Phase 2,4,8,50.0,54,106,50.9
+T1D-UOM (MDI 8),nocturnal_hypoglycemia,야간 저혈당,NOCTURNAL_HYPO,6,MVP,2,8,25.0,44,106,41.5
+T1D-UOM (MDI 8),exercise_delayed_hypoglycemia,운동 후 지연성 저혈당,EXERCISE_DELAYED_HYPO,4,Phase 2 (운동 로그),0,8,0.0,0,106,0.0
+T1D-UOM (MDI 8),hypo_concentration,저혈당 집중 시간대,(시간대 검토),AGP-lit,기존,5,8,62.5,83,106,78.3
+T1D-UOM (MDI 8),low_time_in_range,목표범위 미달,(TIR 목표),전 출처,지표,5,8,62.5,61,106,57.5
+T1D-UOM (MDI 8),excess_hyperglycemia,고혈당 과다,HYPER_SUSTAINED,7,MVP,5,8,62.5,61,106,57.5
+T1D-UOM (MDI 8),excess_hyperglycemia_level2,심한 고혈당 과다,HYPER_SUSTAINED,7,MVP,6,8,75.0,54,106,50.9
+T1D-UOM (MDI 8),sickday_ketone_risk,케톤 위험 지속 고혈당,SICKDAY_KETONE_RISK,4,Phase 2,6,8,75.0,56,106,52.8
+T1D-UOM (MDI 8),postprandial_spike,식후 스파이크,POSTPRANDIAL_HYPER,6,MVP (식사 로그),4,8,50.0,36,106,34.0
+T1D-UOM (MDI 8),fasting_hyperglycemia,공복/아침 고혈당,FASTING_MORNING_HYPER,6,MVP,6,8,75.0,77,106,72.6
+T1D-UOM (MDI 8),hyper_concentration,고혈당 집중 시간대,(시간대 검토),AGP-lit,기존,3,8,37.5,25,106,23.6
+T1D-UOM (MDI 8),high_variability,높은 변동성,HIGH_VARIABILITY,6,MVP,5,8,62.5,54,106,50.9
+T1D-UOM (MDI 8),rapid_drop,급격한 혈당 하강,RAPID_DROP,3,Phase 2,7,8,87.5,94,106,88.7
+T1D-UOM (MDI 8),dawn_rise,새벽 상승,DAWN_PHENOMENON,3,Phase 2,0,8,0.0,3,106,2.8
+OhioT1DM (12),low_data_coverage,데이터 불충분,LOW_DATA_COVERAGE,6,MVP,1,12,8.3,3,76,3.9
+OhioT1DM (12),excess_hypoglycemia,전반적 저혈당 과다,HYPO_OVERALL_L1,7,MVP,4,11,36.4,23,73,31.5
+OhioT1DM (12),excess_hypoglycemia_level2,심한 저혈당 과다,HYPO_OVERALL_L2,7,MVP,2,11,18.2,18,73,24.7
+OhioT1DM (12),prolonged_hypoglycemia,지속 저혈당,PROLONGED_HYPO,2,Phase 2,5,11,45.5,31,73,42.5
+OhioT1DM (12),nocturnal_hypoglycemia,야간 저혈당,NOCTURNAL_HYPO,6,MVP,6,11,54.5,33,73,45.2
+OhioT1DM (12),exercise_delayed_hypoglycemia,운동 후 지연성 저혈당,EXERCISE_DELAYED_HYPO,4,Phase 2 (운동 로그),4,11,36.4,30,73,41.1
+OhioT1DM (12),hypo_concentration,저혈당 집중 시간대,(시간대 검토),AGP-lit,기존,9,11,81.8,55,73,75.3
+OhioT1DM (12),low_time_in_range,목표범위 미달,(TIR 목표),전 출처,지표,8,11,72.7,50,73,68.5
+OhioT1DM (12),excess_hyperglycemia,고혈당 과다,HYPER_SUSTAINED,7,MVP,9,11,81.8,52,73,71.2
+OhioT1DM (12),excess_hyperglycemia_level2,심한 고혈당 과다,HYPER_SUSTAINED,7,MVP,7,11,63.6,46,73,63.0
+OhioT1DM (12),sickday_ketone_risk,케톤 위험 지속 고혈당,SICKDAY_KETONE_RISK,4,Phase 2,7,11,63.6,35,73,47.9
+OhioT1DM (12),postprandial_spike,식후 스파이크,POSTPRANDIAL_HYPER,6,MVP (식사 로그),3,11,27.3,21,73,28.8
+OhioT1DM (12),fasting_hyperglycemia,공복/아침 고혈당,FASTING_MORNING_HYPER,6,MVP,8,11,72.7,49,73,67.1
+OhioT1DM (12),hyper_concentration,고혈당 집중 시간대,(시간대 검토),AGP-lit,기존,2,11,18.2,15,73,20.5
+OhioT1DM (12),high_variability,높은 변동성,HIGH_VARIABILITY,6,MVP,4,11,36.4,39,73,53.4
+OhioT1DM (12),rapid_drop,급격한 혈당 하강,RAPID_DROP,3,Phase 2,8,11,72.7,61,73,83.6
+OhioT1DM (12),dawn_rise,새벽 상승,DAWN_PHENOMENON,3,Phase 2,2,11,18.2,8,73,11.0

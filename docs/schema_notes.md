@@ -3,7 +3,7 @@
 실제 파일을 읽어 확인한 내용만 적는다. 추측은 적지 않고, 확인이 필요한 항목은
 "확인 필요"로 남긴다.
 
-마지막 확인: 2026-09-08
+마지막 확인: 2026-09-13
 
 Replace-BG·ShanghaiT1DM의 **원본 구조 기록은 `Replace-BG` 브랜치로 옮겼다.** 두
 데이터셋 로더가 그쪽에 있기 때문이다. 다만 아래 전처리·지표·패턴 절에 남아 있는
@@ -211,6 +211,93 @@ HIGHLY_ACTIVE}, `motion_intensity_mean`, `motion_intensity_max`.
 
 CC BY 4.0은 출처 표기와 변경 사실 명시를 조건으로 재배포·변형을 허용한다. 비식별
 창을 시연 계정에 적재하는 것은 위 표기가 시연에 같이 나가는 한 라이선스 범위 안이다.
+
+---
+
+## OhioT1DM (이벤트 로그 검증용)
+
+- 위치: `data/raw/OhioT1DM/OhioT1DM/{2018,2020}/{train,test}/`
+- 로더: [`src/loaders/ohio_t1dm.py`](../src/loaders/ohio_t1dm.py)
+- 검증 보고서: [`docs/ohio_t1dm/운동_지연성_저혈당_검증.md`](ohio_t1dm/운동_지연성_저혈당_검증.md)
+- 라이선스: 연구용 DUA. 배포본에 README·데이터 사전이 동봉되지 않았다.
+
+12명(2018 코호트 559·563·570·575·588·591, 2020 코호트 540·544·552·567·584·596),
+환자당 51~59일. 환자당 XML 두 장(`{id}-ws-training.xml`, `{id}-ws-testing.xml`)이고
+`<patient>` 아래 데이터 종류별 섹션, 각 섹션은 `<event .../>` 목록.
+
+### 이 데이터셋을 쓰는 이유
+
+**자기보고 이벤트 로그**다. T1D-UOM에 하나도 없던 것들이 참가자 입력으로 있다.
+
+| 섹션 | 건수(12명 합) | 속성 |
+|---|---|---|
+| `exercise` | 219 | `ts`, `intensity`(1~10), `duration`(분). `type`·`competitive`는 전 행 비어 있음 |
+| `hypo_event` | 131 | `ts`만 |
+| `illness` | 14 | `ts_begin`, `ts_end`(대개 비어 있음), `type`·`description`(비어 있음) |
+| `stressors` | 7 | |
+| `sleep` | 497 | `ts_begin`, `ts_end`, `quality`. 2018 코호트에 begin/end가 뒤바뀐 행 있음 |
+| `work` | 214 | 로더가 싣지 않는다 |
+| `basis_*` | 수만 | 심박·GSR·피부온·걸음·가속도 스트림. 로더가 싣지 않는다 |
+
+### 날짜 — 익명화로 밀려 있다
+
+`DD-MM-YYYY HH:MM:SS`. 연도가 2021~2027로 흩어져 있고 환자마다 다르다. Replace-BG처럼
+**절대 날짜와 요일은 의미가 없고** 환자 내부 간격과 하루 중 시각만 쓴다. 타임존
+정보는 없다.
+
+### 혈당
+
+`glucose_level`: mg/dL, 전원 5분 간격, 166,533행. 센서 범위는 **정확히 40/400**
+(40이 206건, 41은 31건; 400이 335건, 399는 7건). Replace-BG의 G4가 39/401이었던 것과
+달리 스펙값 그대로다. `SENSOR_LIMITS["ohio_t1dm"] = (40.0, 400.0)`.
+
+`finger_stick` 4,762건 → `cbg`.
+
+### 인슐린 — 전원 펌프
+
+`basal`(프로파일 주입률)과 `temp_basal`(임시 주입률, `ts_begin`/`ts_end`)이 전원에게
+있다. **MDI는 없다.** `temp_basal` 572건 중 371건이 0.0이라 `pump_suspend`로 보낸다.
+
+`bolus`의 `type`은 normal / normal dual / square / square dual. square 계열은
+`ts_begin`~`ts_end`에 걸쳐 주입되므로 `insulin_bolus_extended`, 나머지는
+`insulin_bolus`. dual은 원본이 normal 분과 square 분을 각각 한 행으로 나눠 준다.
+`bwz_carb_input`(볼러스 계산기 탄수화물 입력)은 **2018 코호트에만** 있다(152~347건);
+2020은 전무.
+
+**540·567은 자기보고 이벤트가 0건이면서 `temp_basal`이 유독 많다**(540: 57일에
+287건, 프로파일 `basal`은 32건). 자동 모드 펌프(670G류)일 가능성이 있다. T1D-UOM의
+2301·2307과 같은 의심 신호다. — 확인 필요
+
+### 식사
+
+`meal`: `ts`, `type`, `carbs`(g). 2,168건. 자기보고.
+
+### 원본의 지저분한 부분
+
+- 값이 없을 때 빈 문자열이나 공백 하나(`" "`)를 넣는다. 로더가 NaN으로 바꾼다.
+- **같은 이벤트가 train과 test 파일 양쪽에 실려 있는 경우가 있다**(544 운동 등).
+  두 파일을 이어 붙였으므로 행 전체가 같으면 하나만 남긴다. 혈당은 겹치지 않는다.
+- `weight`가 12명 전원 99다. 익명화된 값으로 보이며 쓰지 않는다.
+- `sleep`의 begin/end가 뒤바뀐 행: 둘 중 이른 쪽을 시작으로, 차의 절댓값을 지속시간으로.
+
+### 로더가 만드는 이벤트 (12명, 14,397건)
+
+| event_type | 건수 |
+|---|---|
+| `cbg` | 4,762 |
+| `insulin_bolus` | 3,488 |
+| `meal` | 2,168 |
+| `insulin_basal_rate` | 1,494 |
+| `sleep` | 497 |
+| `pump_suspend` | 371 |
+| `insulin_bolus_extended` | 245 |
+| `exercise` | 219 |
+| `hypo_event` | 131 |
+| `illness` | 14 |
+| `stressor` | 7 |
+
+`hypo_event`·`illness`·`stressor`·`sleep`은 이 데이터셋을 붙이면서 `EVENT_TYPES`에
+새로 등록했다. 스키마는 팀 계약이라 합의가 필요하다.
 
 ---
 

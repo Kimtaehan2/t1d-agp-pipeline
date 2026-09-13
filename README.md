@@ -1,6 +1,31 @@
-# t1d-agp-pipeline
+# t1d-agp-pipeline — OhioT1DM 브랜치
 
 CGM 데이터 전처리 · AGP 지표 · 규칙 기반 패턴 탐지 파이프라인.
+
+`main`에서 갈라져 나온 브랜치다. 세 가지를 더했다.
+
+1. **OhioT1DM 로더** (`src/loaders/ohio_t1dm.py`). 12명·8주·전원 펌프. 이 데이터셋의
+   가치는 CGM이 아니라 **자기보고 이벤트 로그**(운동·저혈당 사건·질병·스트레스·수면)다.
+   T1D-UOM에 없던 것이라 이벤트 기반 규칙을 정답을 놓고 검증할 수 있다.
+2. **문헌 조사 기반 패턴 9종**과 저혈당 우선 정렬(`PATTERN_ORDER`). ATTD 2019 ·
+   KDA 2025 · ADA · ISPAD 2022 · AGP 해석 문헌이 권고한 enum을 `src/patterns.py`에
+   구현했다.
+3. **실측 두 편.**
+   - [`docs/patterns/패턴_출현율.md`](docs/patterns/패턴_출현율.md) — 권고 enum 전부를
+     T1D-UOM과 Ohio에 돌려 얼마나 켜지는지 쟀다. `rapid_drop`은 전원 켜져 쓸 수 없고,
+     `fasting_hyperglycemia`·`sickday_ketone_risk`는 보류.
+   - [`docs/ohio_t1dm/운동_지연성_저혈당_검증.md`](docs/ohio_t1dm/운동_지연성_저혈당_검증.md)
+     — `EXERCISE_DELAYED_HYPO`를 Ohio 운동 로그로 검증. **지금 정의로는 운동 효과를
+     잡지 못한다** (운동 뒤 저혈당율 상대위험 0.97). 기저율 대비로 재정의해야 한다.
+
+```bash
+python scripts/pattern_prevalence.py        # 출현율 표
+python scripts/validate_exercise_hypo.py    # 운동-저혈당 검증
+```
+
+Ohio 원본은 `data/raw/OhioT1DM/OhioT1DM/{2018,2020}/{train,test}/`에 둔다.
+
+---
 
 주력 데이터셋은 **T1D-UOM**(University of Manchester, CC BY 4.0)이고, `main`의
 로더는 그중 **MDI 환자 8명만** 싣는다.
@@ -66,6 +91,8 @@ findings = detect_patterns(proc, events=data.events, metrics=metrics)
 | `src/patterns.py` | 규칙 기반 패턴 탐지. ML을 쓰지 않는다 |
 | `src/storage.py` | Parquet 입출력 (pyarrow → fastparquet 폴백) |
 | `src/loaders/t1d_uom.py` | T1D-UOM 로더 |
+| `src/loaders/ohio_t1dm.py` | OhioT1DM 로더 (이 브랜치) |
+| `scripts/` | 출현율·검증 스크립트 (이 브랜치) |
 | `docs/schema_notes.md` | 원본 구조 실측 기록 |
 
 ## 로더가 원본 README를 믿지 않는 지점
