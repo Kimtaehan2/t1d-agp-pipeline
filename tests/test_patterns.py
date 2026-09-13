@@ -16,7 +16,11 @@ from src.patterns import (
     FINDING_COLUMNS,
     NIGHT_HYPO_MIN_DAYS,
     PATTERN_DEFINITIONS,
+    PATTERN_ORDER,
     POSTPRANDIAL_RISE_THRESHOLD,
+    PROLONGED_HYPO_MINUTES,
+    RAPID_DROP_MIN_EPISODES,
+    SICKDAY_MIN_MINUTES,
     detect_patterns,
     pattern_catalog,
     summarize_patterns,
@@ -370,3 +374,121 @@ def test_detail_text_is_descriptive_not_prescriptive():
     for detail in found["detail"]:
         for word in banned:
             assert word not in detail, (detail, word)
+
+
+# ============================================================================
+# 2026-09 문헌 조사로 추가한 규칙
+# ============================================================================
+
+
+def _events_of(kind: str, times, values=None, unit=None):
+    return coerce_event_frame(pd.DataFrame({
+        "patient_id": "replace_bg_1",
+        "timestamp": list(times),
+        "event_type": kind,
+        "value": values if values is not None else np.nan,
+        "unit": unit,
+        "text": None,
+        "source": "replace_bg",
+    }))
+
+
+def test_findings_are_ordered_hypoglycemia_first():
+    """저혈당 우선 해석 순서. 창 안 어떤 조합이 나와도 순위대로 나온다."""
+    values = _flat(120.0)
+    values[::2] = 60.0            # TBR 과다 + level 2 + 변동성
+    values[1::2] = 300.0
+    found = detect_patterns(_frame(values))
+    order = found["pattern"].tolist()
+    assert order.index("excess_hypoglycemia") < order.index("excess_hyperglycemia")
+    assert order.index("excess_hyperglycemia") < order.index("high_variability")
+    assert order == sorted(order, key=PATTERN_ORDER.index)
+
+
+def test_low_coverage_yields_only_that_finding():
+    values = _flat(300.0)
+    values[len(values) // 2:] = np.nan       # 확보율 ~50%
+    found = detect_patterns(_frame(values))
+    assert found["pattern"].tolist() == ["low_data_coverage"]
+    assert found["value"].iloc[0] < 70.0
+
+
+def test_low_coverage_can_be_suppressed():
+    values = _flat(300.0)
+    values[len(values) // 2:] = np.nan
+    assert detect_patterns(_frame(values), include_low_coverage=False).empty
+
+
+def test_level2_thresholds_fire_independently():
+    values = _flat(120.0)
+    values[:: 50] = 50.0                  # 2% 미만 54 → level 2 켜짐(>1%)
+    assert "excess_hypoglycemia_level2" in _patterns(values)
+    values = _flat(120.0)
+    values[:: 10] = 260.0                 # 10% 초과 250 → level 2 켜짐(>5%)
+    found = _patterns(values)
+    assert "excess_hyperglycemia_level2" in found
+    assert "excess_hyperglycemia" not in found   # TAR 10% < 25%
+
+
+def test_prolonged_hypo_needs_more_than_120_minutes():
+    values = _flat(120.0)
+    slots = PROLONGED_HYPO_MINUTES // GRID_MINUTES
+    values[_index(3, 14):_index(3, 14) + slots] = 60.0         # 정확히 120분
+    assert "prolonged_hypoglycemia" not in _patterns(values)
+    values[_index(3, 14):_index(3, 14) + slots + 1] = 60.0     # 125분
+    assert "prolonged_hypoglycemia" in _patterns(values)
+
+
+def test_sickday_needs_two_long_episodes():
+    values = _flat(120.0)
+    slots = SICKDAY_MIN_MINUTES // GRID_MINUTES
+    values[_index(2, 10):_index(2, 10) + slots] = 300.0
+    assert "sickday_ketone_risk" not in _patterns(values)
+    values[_index(5, 10):_index(5, 10) + slots] = 300.0
+    assert "sickday_ketone_risk" in _patterns(values)
+
+
+def test_fasting_hyperglycemia_uses_morning_window():
+    values = _flat(120.0)
+    for day in range(DAYS):
+        values[_index(day, 6):_index(day, 7)] = 150.0
+    assert "fasting_hyperglycemia" in _patterns(values)
+    for day in range(DAYS):
+        values[_index(day, 6):_index(day, 7)] = 125.0
+    assert "fasting_hyperglycemia" not in _patterns(values)
+
+
+def test_rapid_drop_counts_episodes():
+    values = _flat(200.0)
+    for day in range(1, RAPID_DROP_MIN_EPISODES + 1):     # 0일차는 최근 14일 창 밖
+        i = _index(day, 15)
+        values[i:i + 3] = [200.0, 160.0, 120.0]     # 10분에 80 = 8 mg/dL/min
+        values[i + 3:i + 6] = 100.0
+    assert "rapid_drop" in _patterns(values)
+
+
+def test_exercise_delayed_hypo_needs_exercise_log():
+    values = _flat(120.0)
+    times = []
+    for day in range(1, 4):                                         # 0일차는 창 밖
+        times.append(START + pd.Timedelta(days=day, hours=17))     # 17:00 운동 60분
+        night = _index(day + 1, 3)                                  # 다음날 03:00 저혈당
+        values[night:night + 6] = 60.0
+    events = _events_of("exercise", times, values=60.0, unit="min")
+
+    found = detect_patterns(_frame(values), events=events)
+    row = found[found["pattern"] == "exercise_delayed_hypoglycemia"].iloc[0]
+    assert row["n_events"] == 3 and row["n_total"] == 3
+    assert "야간 시작 3회" in row["detail"]
+    assert "exercise_delayed_hypoglycemia" not in _patterns(values, events=None)
+
+
+def test_exercise_hypo_within_two_hours_is_not_delayed():
+    values = _flat(120.0)
+    times = []
+    for day in range(1, 4):
+        times.append(START + pd.Timedelta(days=day, hours=17))
+        soon = _index(day, 18, 30)                                  # 종료 30분 뒤
+        values[soon:soon + 6] = 60.0
+    events = _events_of("exercise", times, values=60.0, unit="min")
+    assert "exercise_delayed_hypoglycemia" not in _patterns(values, events=events)
